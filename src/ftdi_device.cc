@@ -13,6 +13,7 @@
 
 #ifndef WIN32
     #include <unistd.h>
+    #include <time.h>
     #include <sys/time.h>
 #else
     #include <windows.h>
@@ -46,7 +47,6 @@ using namespace ftdi_device;
 UCHAR GetWordLength(int wordLength);
 UCHAR GetStopBits(int stopBits);
 UCHAR GetParity(const char* string);
-USHORT GetFlowControl(const char* string);
 
 void ToCString(Local<String> val, char ** ptr);
 
@@ -160,9 +160,7 @@ class ReadWorker : public Nan::AsyncWorker {
   // here, so everything we need for input and output
   // should go on `this`.
   void Execute () {
-    baton = &batonEntity;
-    baton->length = 0;
-    baton->data = NULL;
+    baton = new ReadBaton_t();
     status = FtdiDevice::ReadDataAsync(device, baton);
   }
 
@@ -190,7 +188,8 @@ class ReadWorker : public Nan::AsyncWorker {
       Local<Object> globalObj = Nan::GetCurrentContext()->Global();
       Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(Nan::New<String>("Buffer").ToLocalChecked()));
       Handle<Value> constructorArgs[3] = { slowBuffer, Nan::New<Number>(baton->length), Nan::New<Number>(0) };
-      Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
+      Local<Object> actualBuffer = Nan::NewInstance(bufferConstructor, 3, constructorArgs).ToLocalChecked();
+      //Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
       argv[1] = actualBuffer;
 
       if(status != FT_OK)
@@ -205,7 +204,7 @@ class ReadWorker : public Nan::AsyncWorker {
       callback->Call(2, argv);
     }
 
-    if(baton->data != NULL)
+    if(baton->length != 0)
     {
       delete baton->data;
       baton->length = 0;
@@ -223,13 +222,13 @@ class ReadWorker : public Nan::AsyncWorker {
       AsyncQueueWorkerPersistent(this);
     }
 
+    delete baton;
   };
 
  private:
   FT_STATUS status;
   FtdiDevice* device;
   ReadBaton_t* baton;
-  ReadBaton_t batonEntity;
 };
 
 FT_STATUS FtdiDevice::ReadDataAsync(FtdiDevice* device, ReadBaton_t* baton)
@@ -743,15 +742,6 @@ FT_STATUS FtdiDevice::SetDeviceSettings()
     return ftStatus;
   }
 
-  uv_mutex_lock(&libraryMutex);
-  ftStatus = FT_SetFlowControl(ftHandle, deviceParams.fc, 0x11, 0x13);
-  uv_mutex_unlock(&libraryMutex);
-  if (ftStatus != FT_OK)
-    {
-      fprintf(stderr, "Can't set flow control: %s\n", error_strings[ftStatus]);
-      return ftStatus;
-    }
-
   if (deviceParams.hasBitSettings == true) {
     uv_mutex_lock(&libraryMutex);
     ftStatus = FT_SetBitMode(ftHandle, deviceParams.bitMask, deviceParams.bitMode);
@@ -774,21 +764,20 @@ void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
   Local<String> databits  = Nan::New<String>(CONNECTION_DATABITS_TAG).ToLocalChecked();
   Local<String> stopbits  = Nan::New<String>(CONNECTION_STOPBITS_TAG).ToLocalChecked();
   Local<String> parity    = Nan::New<String>(CONNECTION_PARITY_TAG).ToLocalChecked();
-  Local<String> flowctrl  = Nan::New<String>(CONNECTION_FC_TAG).ToLocalChecked();
   Local<String> bitmode   = Nan::New<String>(CONNECTION_BITMODE).ToLocalChecked();
   Local<String> bitmask   = Nan::New<String>(CONNECTION_BITMASK).ToLocalChecked();
 
   if(options->Has(baudrate))
   {
-    deviceParams.baudRate = options->Get(baudrate)->ToInt32()->Int32Value();
+    deviceParams.baudRate = options->Get(baudrate)->ToInt32(Nan::GetCurrentContext()).ToLocalChecked()->Value();
   }
   if(options->Has(databits))
   {
-    deviceParams.wordLength = GetWordLength(options->Get(databits)->ToInt32()->Int32Value());
+    deviceParams.wordLength = GetWordLength(options->Get(databits)->ToInt32(Nan::GetCurrentContext()).ToLocalChecked()->Value());
   }
   if(options->Has(stopbits))
   {
-    deviceParams.stopBits = GetStopBits(options->Get(stopbits)->ToInt32()->Int32Value());
+    deviceParams.stopBits = GetStopBits(options->Get(stopbits)->ToInt32(Nan::GetCurrentContext()).ToLocalChecked()->Value());
   }
   if(options->Has(parity))
   {
@@ -797,21 +786,13 @@ void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
     deviceParams.parity = GetParity(str);
     delete[] str;
   }
-  if(options->Has(flowctrl))
-  {
-    char* str;
-    ToCString(options->Get(flowctrl)->ToString(), &str);
-    deviceParams.fc = GetFlowControl(str);
-    delete[] str;
-  }
-
   bool hasBitSettings = false;
   deviceParams.bitMode = 0;
   deviceParams.bitMask = 0;
 
   if(options->Has(bitmode))
   {
-      deviceParams.bitMode = options->Get(bitmode)->ToInt32()->Int32Value();
+      deviceParams.bitMode = options->Get(bitmode)->ToInt32(Nan::GetCurrentContext()).ToLocalChecked()->Value();
       hasBitSettings = true;
   } else {
       hasBitSettings = false;
@@ -819,7 +800,7 @@ void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
 
   if(hasBitSettings && options->Has(bitmask))
   {
-      deviceParams.bitMask = options->Get(bitmask)->ToInt32()->Int32Value();
+      deviceParams.bitMask = options->Get(bitmask)->ToInt32(Nan::GetCurrentContext()).ToLocalChecked()->Value();
       hasBitSettings = true;
   }
 
@@ -867,27 +848,6 @@ UCHAR GetParity(const char* string)
     return FT_PARITY_EVEN;
   }
   return FT_PARITY_NONE;
-}
-
-USHORT GetFlowControl(const char* string)
-{
-  if(strcmp(CONNECTION_FC_NONE, string) == 0)
-  {
-    return FT_FLOW_NONE;
-  }
-  else if(strcmp(CONNECTION_FC_RTS_CTS, string) == 0)
-  {
-    return FT_FLOW_RTS_CTS;
-  }
-  else if(strcmp(CONNECTION_FC_DTR_DSR, string) == 0)
-  {
-    return FT_FLOW_DTR_DSR;
-  }
-  else if(strcmp(CONNECTION_FC_XON_XOFF, string) == 0)
-  {
-    return FT_FLOW_XON_XOFF;
-  }
-  return FT_FLOW_NONE;
 }
 
 /**
