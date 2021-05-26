@@ -89,7 +89,7 @@ NAN_METHOD(FtdiDevice::New) {
   // Check if the argument is an object
   if(info[0]->IsObject())
   {
-    Local<Object> obj = info[0]->ToObject();
+    Local<Object> obj = info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
 
     /**
      * Determine how to connect to the device, we have the following possibilities:
@@ -99,41 +99,41 @@ NAN_METHOD(FtdiDevice::New) {
      *   4) By index
      * In this order we check for availability of the parameter and the first valid we found is taken
      */
-    if(obj->Has(locationId) && obj->Get(locationId)->Int32Value() != 0)
+    if(obj->Has(Nan::GetCurrentContext(),locationId).ToChecked() && obj->Get(locationId)->Int32Value(Nan::GetCurrentContext()).ToChecked() != 0)
     {
-      object->connectParams.connectId = obj->Get(locationId)->Int32Value();
+      object->connectParams.connectId = obj->Get(locationId)->Int32Value(Nan::GetCurrentContext()).ToChecked();
       object->connectParams.connectType = ConnectType_ByLocationId;
     }
-    else if(obj->Has(serial) && obj->Get(serial)->ToString()->Length() > 0)
+    else if(obj->Has(Nan::GetCurrentContext(),serial).ToChecked() && obj->Get(serial)->ToString(Nan::GetCurrentContext()).ToLocalChecked()->Length() > 0)
     {
-      ToCString(obj->Get(serial)->ToString(), &object->connectParams.connectString);
+      ToCString(obj->Get(serial)->ToString(Nan::GetCurrentContext()).ToLocalChecked(), &object->connectParams.connectString);
       object->connectParams.connectType = ConnectType_BySerial;
     }
-    else if(obj->Has(description) && obj->Get(description)->ToString()->Length() > 0)
+    else if(obj->Has(Nan::GetCurrentContext(),description).ToChecked() && obj->Get(description)->ToString(Nan::GetCurrentContext()).ToLocalChecked()->Length() > 0)
     {
-      ToCString(obj->Get(description)->ToString(), &object->connectParams.connectString);
+      ToCString(obj->Get(description)->ToString(Nan::GetCurrentContext()).ToLocalChecked(), &object->connectParams.connectString);
       object->connectParams.connectType = ConnectType_ByDescription;
     }
-    else if(obj->Has(index))
+    else if(obj->Has(Nan::GetCurrentContext(),index).ToChecked())
     {
-      object->connectParams.connectId = obj->Get(index)->Int32Value();
+      object->connectParams.connectId = obj->Get(index)->Int32Value(Nan::GetCurrentContext()).ToChecked();
       object->connectParams.connectType = ConnectType_ByIndex;
     }
     object->connectParams.vid = 0;
-    if(obj->Has(vid))
+    if(obj->Has(Nan::GetCurrentContext(),vid).ToChecked())
     {
-      object->connectParams.vid = obj->Get(vid)->Int32Value();
+      object->connectParams.vid = obj->Get(vid)->Int32Value(Nan::GetCurrentContext()).ToChecked();
     }
     object->connectParams.pid = 0;
-    if(obj->Has(pid))
+    if(obj->Has(Nan::GetCurrentContext(),pid).ToChecked())
     {
-      object->connectParams.pid = obj->Get(pid)->Int32Value();
+      object->connectParams.pid = obj->Get(pid)->Int32Value(Nan::GetCurrentContext()).ToChecked();
     }
   }
   // if the argument is a number we connect by index to the device
   else if(info[0]->IsNumber())
   {
-    object->connectParams.connectId = (int) info[0]->NumberValue();
+    object->connectParams.connectId = (int) info[0]->NumberValue(Nan::GetCurrentContext()).ToChecked();
     object->connectParams.connectType = ConnectType_ByIndex;
   }
   else
@@ -187,7 +187,7 @@ class ReadWorker : public Nan::AsyncWorker {
       Local<Object> slowBuffer = Nan::CopyBuffer((char*)baton->data, baton->length).ToLocalChecked();
       Local<Object> globalObj = Nan::GetCurrentContext()->Global();
       Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(Nan::New<String>("Buffer").ToLocalChecked()));
-      Handle<Value> constructorArgs[3] = { slowBuffer, Nan::New<Number>(baton->length), Nan::New<Number>(0) };
+      Local<Value> constructorArgs[3] = { slowBuffer, Nan::New<Number>(baton->length), Nan::New<Number>(0) };
       Local<Object> actualBuffer = Nan::NewInstance(bufferConstructor, 3, constructorArgs).ToLocalChecked();
       //Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
       argv[1] = actualBuffer;
@@ -401,7 +401,7 @@ NAN_METHOD(FtdiDevice::Open) {
     device->deviceState = DeviceState_Open;
 
     // Extract the connection parameters
-    device->ExtractDeviceSettings(info[0]->ToObject());
+    device->ExtractDeviceSettings(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
 
     callback_read = new Nan::Callback(readCallback.As<v8::Function>());
     callback = new Nan::Callback(openCallback.As<v8::Function>());
@@ -571,7 +571,7 @@ NAN_METHOD(FtdiDevice::Write) {
   {
     return Nan::ThrowError("First argument must be a buffer");
   }
-  Local<Object> buffer = info[0]->ToObject();
+  Local<Object> buffer = info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
 
   // Obtain Device Object
   FtdiDevice* device = Nan::ObjectWrap::Unwrap<FtdiDevice>(info.This());
@@ -767,22 +767,22 @@ void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
   Local<String> bitmode   = Nan::New<String>(CONNECTION_BITMODE).ToLocalChecked();
   Local<String> bitmask   = Nan::New<String>(CONNECTION_BITMASK).ToLocalChecked();
 
-  if(options->Has(baudrate))
+  if(options->Has(Nan::GetCurrentContext(),baudrate).ToChecked())
   {
     deviceParams.baudRate = options->Get(baudrate)->ToInt32(Nan::GetCurrentContext()).ToLocalChecked()->Value();
   }
-  if(options->Has(databits))
+  if(options->Has(Nan::GetCurrentContext(),databits).ToChecked())
   {
     deviceParams.wordLength = GetWordLength(options->Get(databits)->ToInt32(Nan::GetCurrentContext()).ToLocalChecked()->Value());
   }
-  if(options->Has(stopbits))
+  if(options->Has(Nan::GetCurrentContext(),stopbits).ToChecked())
   {
     deviceParams.stopBits = GetStopBits(options->Get(stopbits)->ToInt32(Nan::GetCurrentContext()).ToLocalChecked()->Value());
   }
-  if(options->Has(parity))
+  if(options->Has(Nan::GetCurrentContext(),parity).ToChecked())
   {
     char* str;
-    ToCString(options->Get(parity)->ToString(), &str);
+    ToCString(options->Get(parity)->ToString(Nan::GetCurrentContext()).ToLocalChecked(), &str);
     deviceParams.parity = GetParity(str);
     delete[] str;
   }
@@ -790,7 +790,7 @@ void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
   deviceParams.bitMode = 0;
   deviceParams.bitMask = 0;
 
-  if(options->Has(bitmode))
+  if(options->Has(Nan::GetCurrentContext(),bitmode).ToChecked())
   {
       deviceParams.bitMode = options->Get(bitmode)->ToInt32(Nan::GetCurrentContext()).ToLocalChecked()->Value();
       hasBitSettings = true;
@@ -798,7 +798,7 @@ void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
       hasBitSettings = false;
   }
 
-  if(hasBitSettings && options->Has(bitmask))
+  if(hasBitSettings && options->Has(Nan::GetCurrentContext(),bitmask).ToChecked())
   {
       deviceParams.bitMask = options->Get(bitmask)->ToInt32(Nan::GetCurrentContext()).ToLocalChecked()->Value();
       hasBitSettings = true;
@@ -857,10 +857,10 @@ UCHAR GetParity(const char* string)
  */
 void ToCString(Local<String> val, char ** ptr)
 {
-  *ptr = new char[val->Utf8Length() + 1];
+  *ptr = new char[val->Utf8Length(Nan::GetCurrentContext()->GetIsolate()) + 1];
 #if (NODE_MODULE_VERSION > 0x000B)
 // Node 0.11+ (0.11.3 and below won't compile with these)
-  val->WriteOneByte(reinterpret_cast<uint8_t*>(*ptr), 0, -1, 0);
+  val->WriteOneByte(Nan::GetCurrentContext()->GetIsolate(),reinterpret_cast<uint8_t*>(*ptr), 0, -1, 0);
 #else
 // Node 0.8 and 0.10
   val->WriteAscii(*ptr, 0, -1, 0);
@@ -946,7 +946,7 @@ void FtdiDevice::SignalCloseEvent()
 }
 #endif
 
-void FtdiDevice::Initialize(v8::Handle<v8::Object> target)
+void FtdiDevice::Initialize(v8::Local<v8::Object> target)
 {
   // Prepare constructor template
   Local<FunctionTemplate> tpl = Nan::New<FunctionTemplate>(New);
@@ -957,13 +957,13 @@ void FtdiDevice::Initialize(v8::Handle<v8::Object> target)
   tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_OPEN_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Open));
   tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_CLOSE_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Close));
 
-  Local<Function> constructor = tpl->GetFunction();
+  Local<Function> constructor = tpl->GetFunction(Nan::GetCurrentContext()).ToLocalChecked();
   target->Set(Nan::New<String>(JS_CLASS_NAME).ToLocalChecked(), constructor);
 }
 
 extern "C"
 {
-  void init (v8::Handle<v8::Object> target)
+  void init (v8::Local<v8::Object> target)
   {
     InitializeList(target);
     FtdiDevice::Initialize(target);

@@ -11,7 +11,7 @@ using namespace v8;
 using namespace node;
 
 
-void InitializeList(Handle<Object> target);
+void InitializeList(Local<Object> target);
 
 NAN_METHOD(FindAll);
 NAN_METHOD(SetVidPid);

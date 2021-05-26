@@ -212,8 +212,8 @@ NAN_METHOD(FindAll) {
   }
   if (info[0]->IsNumber() && info[1]->IsNumber())
   {
-    vid = (int) info[0]->NumberValue();
-    pid = (int) info[1]->NumberValue();
+    vid = (int) info[0]->NumberValue(Nan::GetCurrentContext()).ToChecked();
+    pid = (int) info[1]->NumberValue(Nan::GetCurrentContext()).ToChecked();
   }
 
   // callback
@@ -228,7 +228,7 @@ NAN_METHOD(FindAll) {
   return;
 }
 
-void InitializeList(Handle<Object> target)
+void InitializeList(Local<Object> target)
 {
   Local<FunctionTemplate> tpl = Nan::New<FunctionTemplate>();
   tpl->SetClassName(Nan::New<String>(JS_CLASS_NAME).ToLocalChecked());
@@ -239,7 +239,7 @@ void InitializeList(Handle<Object> target)
     , Nan::New<FunctionTemplate>(FindAll)
   );
 
-  target->Set(Nan::New<String>(JS_CLASS_NAME).ToLocalChecked(), tpl->GetFunction());
+  target->Set(Nan::New<String>(JS_CLASS_NAME).ToLocalChecked(), tpl->GetFunction(Nan::GetCurrentContext()).ToLocalChecked());
 
   uv_mutex_init(&vidPidMutex);
 }
